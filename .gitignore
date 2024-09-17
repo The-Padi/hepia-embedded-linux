@@ -1,0 +1,17 @@
+# Ignore .vscode folder
+.vscode
+toolchain
+bootloaders
+kernel
+nfsroot
+busybox
+*.cmd
+*.symvers
+*.mod
+*.mod.c
+*.mod.o
+*.o
+*.order
+ctris
+ctris_joystick_api
+ncurses

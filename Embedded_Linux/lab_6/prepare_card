@@ -1,0 +1,31 @@
+#!/bin/sh
+# Partitioning of the SD Card
+
+if [ $# -ne 1 ]; then
+	echo "Usage: prepare_card [peripheral (/dev/sda)]"
+  	exit 1
+fi
+
+sudo dd if=/dev/urandom of="$1" bs=1M count=1 conv=notrunc
+
+sudo fdisk "$1" <<EOF
+o
+n
+p
+1
+2048
++12M
+t
+6
+n
+p
+2
+26624
++200M
+n
+p
+3
+436224
++64M
+w
+EOF

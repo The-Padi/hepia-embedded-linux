@@ -1,0 +1,886 @@
+diff --git a/Makefile b/Makefile
+index 9831a3a..a3940bb 100644
+--- a/Makefile
++++ b/Makefile
+@@ -2,14 +2,14 @@
+ MANDIR=$(DESTDIR)/usr/share/man/man6/
+ BINDIR=$(DESTDIR)/usr/games/
+ 
+-CC=gcc
++CC=arm-linux-gcc
+ MKDIR=mkdir -p
+ INSTALL=install
+ 
+-CFLAGS=-Wall -fomit-frame-pointer -O3
+-LIBS=-lm -lncurses
++CFLAGS=-Wall -fomit-frame-pointer -O3 -I /home/padi/Git/linux_embarq/michael.divia/ncurses/staging/usr/include/
++LIBS=-L /home/padi/Git/linux_embarq/michael.divia/ncurses/staging/usr/lib -lm -lncurses
+ 
+-OBJS=ctris.o game.o screen.o brick.o highscore.o
++OBJS=ctris.o game.o screen.o brick.o highscore.o joystick_api.o
+ OUTPUT=ctris
+ MANS=ctris.6.gz
+ 
+diff --git a/game.c b/game.c
+index 7a2bea0..19c1645 100644
+--- a/game.c
++++ b/game.c
+@@ -7,9 +7,9 @@
+ void init_board(char board[BOARD_HEIGHT][BOARD_WIDTH])
+ {
+ 	unsigned char i, n;
+-	for(i = 0; i < BOARD_HEIGHT; i++)
++	for (i = 0; i < BOARD_HEIGHT; i++)
+ 	{
+-		for(n = 0; n < BOARD_WIDTH; n++)
++		for (n = 0; n < BOARD_WIDTH; n++)
+ 		{
+ 			board[i][n] = 0;
+ 		}
+@@ -20,9 +20,9 @@ void remove_this_row(WINDOW *win, char board[BOARD_HEIGHT][BOARD_WIDTH], unsigne
+ {
+ 	unsigned char x;
+ 	show_remove_row(win, board, y);
+-	for(; y > 0; y--)
++	for (; y > 0; y--)
+ 	{
+-		for(x = 0; x < BOARD_WIDTH; x++)
++		for (x = 0; x < BOARD_WIDTH; x++)
+ 		{
+ 			board[y][x] = board[y - 1][x];
+ 		}
+@@ -34,16 +34,16 @@ void remove_rows(WINDOW *win, char board[BOARD_HEIGHT][BOARD_WIDTH], unsigned in
+ 	char removed_rows = 0;
+ 	unsigned char x, y;
+ 	unsigned int sub_score = 0;
+-	for(y = 0; y < BOARD_HEIGHT; y++)
++	for (y = 0; y < BOARD_HEIGHT; y++)
+ 	{
+-		for(x = 0; x < BOARD_WIDTH; x++)
++		for (x = 0; x < BOARD_WIDTH; x++)
+ 		{
+-			if(board[y][x] == 0)
++			if (board[y][x] == 0)
+ 			{
+ 				break;
+ 			}
+ 		}
+-		if(x >= BOARD_WIDTH)
++		if (x >= BOARD_WIDTH)
+ 		{
+ 			remove_this_row(win, board, y);
+ 			removed_rows++;
+@@ -51,7 +51,7 @@ void remove_rows(WINDOW *win, char board[BOARD_HEIGHT][BOARD_WIDTH], unsigned in
+ 		}
+ 	}
+ 	*score += sub_score;
+-	if(removed_rows > 0)
++	if (removed_rows > 0)
+ 	{
+ 		refresh_win(win);
+ 		usleep(REMOVE_SPLASH_TIME);
+@@ -60,7 +60,7 @@ void remove_rows(WINDOW *win, char board[BOARD_HEIGHT][BOARD_WIDTH], unsigned in
+ 
+ void calc_level(const unsigned int score, char *level)
+ {
+-	while(SPEED_CONST_2 - (*level + 1) * SPEED_CONST_1 >= 0 && score / (LEVEL_CONST * (unsigned int)pow((double)*level, 2)) > 0)
++	while (SPEED_CONST_2 - (*level + 1) * SPEED_CONST_1 >= 0 && score / (LEVEL_CONST * (unsigned int)pow((double)*level, 2)) > 0)
+ 	{
+ 		*level += 1;
+ 	}
+@@ -68,12 +68,12 @@ void calc_level(const unsigned int score, char *level)
+ 
+ void pause_game()
+ {
+-        game_engine(true);
++	game_engine(true);
+ }
+ 
+ unsigned int start_game()
+ {
+-        return game_engine(false);
++	return game_engine(false);
+ }
+ 
+ unsigned int game_engine(bool resize)
+@@ -81,51 +81,56 @@ unsigned int game_engine(bool resize)
+ 	static char brick_type, next_brick_type, name[40], cur_brick[4][4], board[BOARD_HEIGHT][BOARD_WIDTH], level = 1;
+ 	char run;
+ 	unsigned int score = 0;
+-    static unsigned long time = 0L;
+-    unsigned int tick = 0;
++	static unsigned long time = 0L;
++	unsigned int tick = 0;
+ 	static unsigned char x, y;
+ 	static WINDOW *board_win, *preview_win, *score_win;
+-    static bool engine_stop = false;
++	static bool engine_stop = false;
+ 
+ 	show_headline();
+-        
+-    if (resize) {
+-        if (game_state != PAUSED_STATE) {
+-            // if the game engine is in the RUNING_STATE then
+-            // the resize call below will switch the engine to PAUSED_STATE
+-            
+-            // if the game is in the QUIT_STATE then
+-            // the call below will simulate a key being pressed
+-            // and that will force the highscore screen or play_again dialog to be refreshed
+-            put_key('p');
+-        }
+ 
+-    	if (game_state == QUIT_STATE)
+-        {
+-            // if the game is in the highscore screen then refresh it upon resize
+-            if (!engine_stop) {
+-                show_highscore(name);
+-            }
+-        }
+-        else
+-        {
+-            // here we will only have RUNNING_STATE, PAUSED_STATE or GAME_OVER_STATE
+-            // both states coresponds to the main screen so
+-            // the main screen will be refreshed upon resize
+-            show_score(score_win, score, level, time);
+-            show_brick_preview(preview_win, next_brick_type);
+-            show_board_win(board_win, board, cur_brick, brick_type, x, y);
+-            if (game_state == PAUSED_STATE) {
+-                    show_pause(board_win);
+-            }
+-            else if (game_state == GAME_OVER_STATE) {
+-                    show_game_over(board_win);
+-            }
+-        }
+-        return score;
+-    }
+-    
+-    engine_stop = false;
++	if (resize)
++	{
++		if (game_state != PAUSED_STATE)
++		{
++			// if the game engine is in the RUNING_STATE then
++			// the resize call below will switch the engine to PAUSED_STATE
++
++			// if the game is in the QUIT_STATE then
++			// the call below will simulate a key being pressed
++			// and that will force the highscore screen or play_again dialog to be refreshed
++			put_key('p');
++		}
++
++		if (game_state == QUIT_STATE)
++		{
++			// if the game is in the highscore screen then refresh it upon resize
++			if (!engine_stop)
++			{
++				show_highscore(name);
++			}
++		}
++		else
++		{
++			// here we will only have RUNNING_STATE, PAUSED_STATE or GAME_OVER_STATE
++			// both states coresponds to the main screen so
++			// the main screen will be refreshed upon resize
++			show_score(score_win, score, level, time);
++			show_brick_preview(preview_win, next_brick_type);
++			show_board_win(board_win, board, cur_brick, brick_type, x, y);
++			if (game_state == PAUSED_STATE)
++			{
++				show_pause(board_win);
++			}
++			else if (game_state == GAME_OVER_STATE)
++			{
++				show_game_over(board_win);
++			}
++		}
++		return score;
++	}
++
++	engine_stop = false;
+ 	board_win = (WINDOW *)create_board_win();
+ 	preview_win = (WINDOW *)create_preview_win();
+ 	score_win = (WINDOW *)create_score_win();
+@@ -135,7 +140,7 @@ unsigned int game_engine(bool resize)
+ 	game_state = PAUSED_STATE;
+ 	wait_for_start(board_win);
+ 	game_state = RUNNING_STATE;
+-	while(game_state == RUNNING_STATE)
++	while (game_state == RUNNING_STATE)
+ 	{
+ 		brick_type = next_brick_type;
+ 		next_brick_type = get_rand(7) + 1;
+@@ -144,104 +149,112 @@ unsigned int game_engine(bool resize)
+ 		x = BOARD_WIDTH / 2;
+ 		y = 0;
+ 		run = 1;
+-		while(game_state == RUNNING_STATE)
++		while (game_state == RUNNING_STATE)
+ 		{
+ 			show_board_win(board_win, board, cur_brick, brick_type, x, y);
+-			switch(get_key(board_win))
++
++			switch (get_key(board_win))
+ 			{
+-				case 's':
+-				case KEY_DOWN:
+-					if(old_style_keys != 0)
++			case 4:
++			case 's':
++			case KEY_DOWN:
++				if (old_style_keys != 0)
++				{
++					if (counterclockwise_rotation == 1)
+ 					{
+-						if(counterclockwise_rotation == 1)
+-						{
+-							change_direction(board, cur_brick, x, y, -1);
+-						}
+-						else
+-						{
+-							change_direction(board, cur_brick, x, y, 1);
+-						}
++						change_direction(board, cur_brick, x, y, -1);
+ 					}
+ 					else
+-					{
+-						if(check_brick(board, cur_brick, x, y + 1) == 0)
+-						{
+-							y++;
+-						}
+-					}
+-					break;
+-				case 'w':
+-				case 'k':
+-				case KEY_UP:
+-					if(counterclockwise_rotation == 1)
+ 					{
+ 						change_direction(board, cur_brick, x, y, 1);
+ 					}
+-					else
+-					{
+-						change_direction(board, cur_brick, x, y, -1);
+-					}
+-					break;
+-				case 'd':
+-				case 'l':
+-				case KEY_RIGHT:
+-					if(check_brick(board, cur_brick, x + 1, y) == 0)
+-					{
+-						x++;
+-					}
+-					break;
+-				case 'a':
+-				case 'j':
+-				case KEY_LEFT:
+-					if(x > 0 && check_brick(board, cur_brick, x - 1, y) == 0)
++				}
++				else
++				{
++					if (check_brick(board, cur_brick, x, y + 1) == 0)
+ 					{
+-						x--;
++						y++;
+ 					}
+-					break;
+-				case ' ':
+-					if(old_style_keys != 0)
++				}
++				break;
++			case 3:
++			case 'w':
++			case 'k':
++			case KEY_UP:
++				if (counterclockwise_rotation == 1)
++				{
++					change_direction(board, cur_brick, x, y, 1);
++				}
++				else
++				{
++					change_direction(board, cur_brick, x, y, -1);
++				}
++				break;
++			case 2:
++			case 'd':
++			case 'l':
++			case KEY_RIGHT:
++				if (check_brick(board, cur_brick, x + 1, y) == 0)
++				{
++					x++;
++				}
++				break;
++			case 1:
++			case 'a':
++			case 'j':
++			case KEY_LEFT:
++				if (x > 0 && check_brick(board, cur_brick, x - 1, y) == 0)
++				{
++					x--;
++				}
++				break;
++			case 5:
++			case ' ':
++				if (old_style_keys != 0)
++				{
++					if (check_brick(board, cur_brick, x, y + 1) == 0)
+ 					{
+-						if(check_brick(board, cur_brick, x, y + 1) == 0)
+-						{
+-							y++;
+-						}
++						y++;
+ 					}
+-					else
++				}
++				else
++				{
++					while (check_brick(board, cur_brick, x, y + 1) == 0)
+ 					{
+-						while(check_brick(board, cur_brick, x, y + 1) == 0)
+-						{
+-							y++;
+-						}
++						y++;
+ 					}
+-					break;
+-				case 'p':
+-					game_state = PAUSED_STATE;
+-					show_pause(board_win);
+-                    while(old_get_key(board_win) != 'p');
+-					game_state = RUNNING_STATE;
+-					break;
+-				case 'q':
+-					game_state = QUIT_STATE;
+-					break;
++				}
++				break;
++			case 'p':
++				game_state = PAUSED_STATE;
++				show_pause(board_win);
++				while (old_get_key(board_win) != 'p')
++					;
++				game_state = RUNNING_STATE;
++				break;
++			case 'q':
++				game_state = QUIT_STATE;
++				break;
+ 			}
+-            tick = SPEED_CONST_2 - level * SPEED_CONST_1;
+-            time += tick;
++			tick = SPEED_CONST_2 - level * SPEED_CONST_1;
++			time += tick;
+ 			show_score(score_win, score, level, time);
+ 			usleep(tick);
+-			if(run > 15)
++			if (run > 15)
+ 			{
+-				if(check_brick(board, cur_brick, x, y + 1) == 0)
++				if (check_brick(board, cur_brick, x, y + 1) == 0)
+ 				{
+ 					y++;
+ 					run = 0;
+ 				}
+ 				else
+ 				{
+-					if(y <= 1)
++					if (y <= 1)
+ 					{
+ 						game_state = GAME_OVER_STATE;
+ 						show_game_over(board_win);
+-                        while(old_get_key(board_win) != ' ');
++						while (old_get_key(board_win) != ' ')
++							;
+ 						game_state = QUIT_STATE;
+ 					}
+ 					draw_to_board(board, cur_brick, brick_type, x, y);
+@@ -257,14 +270,13 @@ unsigned int game_engine(bool resize)
+ 			}
+ 			run++;
+ 		}
+-		
+ 	}
+ 	destroy_score_win(score_win);
+ 	destroy_preview_win(preview_win);
+ 	destroy_board_win(board_win);
+-	if(game_state == QUIT_STATE)
++	if (game_state == QUIT_STATE)
+ 	{
+-		if(in_highscore(score) == 0)
++		if (in_highscore(score) == 0)
+ 		{
+ 			add_user_to_highscore(name, score);
+ 		}
+@@ -273,10 +285,8 @@ unsigned int game_engine(bool resize)
+ 			strncpy(name, "-no-name-", 40);
+ 		}
+ 		show_highscore(name);
+-    	getch();
++		getch();
+ 	}
+-    engine_stop = true;
++	engine_stop = true;
+ 	return score;
+ }
+-
+-
+diff --git a/screen.c b/screen.c
+index 80b4271..9a62c10 100644
+--- a/screen.c
++++ b/screen.c
+@@ -3,13 +3,14 @@
+ #include "brick.h"
+ #include "colors.h"
+ #include "highscore.h"
++#include "joystick_api.h"
+ 
+ int emulated_key = 0;
+ 
+ // workaround for the FreeBSD 4 console to let the cursor disapear
+ void hide_cursor(WINDOW *win)
+ {
+-	if(hide_cursor_workaround == 1)
++	if (hide_cursor_workaround == 1)
+ 	{
+ 		mvwprintw(win, 0, 0, "");
+ 	}
+@@ -26,14 +27,14 @@ char init_screen()
+ {
+ 	int x, y;
+ 	initscr();
+-	if(has_colors() != TRUE)
++	if (has_colors() != TRUE)
+ 	{
+ 		endwin();
+ 		printf("ERROR, your terminal can't display colors.\n");
+ 		return 1;
+ 	}
+ 	getmaxyx(stdscr, y, x);
+-	if(x < WIDTH || y < HEIGHT)
++	if (x < WIDTH || y < HEIGHT)
+ 	{
+ 		endwin();
+ 		printf("ERROR, your terminal is too small. (min %ux%u)\n", WIDTH, HEIGHT);
+@@ -41,9 +42,9 @@ char init_screen()
+ 	}
+ 	clear();
+ 	noecho();
+-	
++
+ 	start_color();
+-	
++
+ 	init_pair(COLOR_BLACK_BG, COLOR_WHITE, COLOR_BLACK);
+ 	init_pair(COLOR_GREEN_BG, COLOR_WHITE, COLOR_GREEN);
+ 	init_pair(COLOR_WHITE_BG, COLOR_WHITE, COLOR_WHITE);
+@@ -62,7 +63,7 @@ char init_screen()
+ 	init_pair(COLOR_BLUE_FG, COLOR_BLUE, COLOR_BLACK);
+ 	init_pair(COLOR_YELLOW_FG, COLOR_YELLOW, COLOR_BLACK);
+ 
+-	if(curs_set(0) == ERR)
++	if (curs_set(0) == ERR)
+ 	{
+ 		hide_cursor_workaround = 1;
+ 	}
+@@ -120,39 +121,39 @@ void destroy_score_win(WINDOW *win)
+ void show_brick_pice(WINDOW *win, const char brick_type, const unsigned char x, const unsigned char y)
+ {
+ 	int color;
+-	switch(brick_type)
++	switch (brick_type)
+ 	{
+-		case 1:
+-			color = COLOR_RED_BG;
+-			break;
+-		case 2:
+-			color = COLOR_YELLOW_BG;
+-			break;
+-		case 3:
+-			color = COLOR_BLUE_BG;
+-			break;
+-		case 4:
+-			color = COLOR_GREEN_BG;
+-			break;
+-		case 5:
+-			color = COLOR_MAGENTA_BG;
+-			break;
+-		case 6:
+-			color = COLOR_WHITE_BG;
+-			break;
+-		case 7:
+-			color = COLOR_CYAN_BG;
+-			break;
+-		default:
+-			color = 0;
+-			break;
++	case 1:
++		color = COLOR_RED_BG;
++		break;
++	case 2:
++		color = COLOR_YELLOW_BG;
++		break;
++	case 3:
++		color = COLOR_BLUE_BG;
++		break;
++	case 4:
++		color = COLOR_GREEN_BG;
++		break;
++	case 5:
++		color = COLOR_MAGENTA_BG;
++		break;
++	case 6:
++		color = COLOR_WHITE_BG;
++		break;
++	case 7:
++		color = COLOR_CYAN_BG;
++		break;
++	default:
++		color = 0;
++		break;
+ 	}
+-	if(color != 0)
++	if (color != 0)
+ 	{
+ 		wattron(win, COLOR_PAIR(color));
+ 	}
+ 	mvwprintw(win, (int)y + 1, (int)x * 2 + 1, "  ");
+-	if(color != 0)
++	if (color != 0)
+ 	{
+ 		wattroff(win, COLOR_PAIR(color));
+ 	}
+@@ -161,15 +162,15 @@ void show_brick_pice(WINDOW *win, const char brick_type, const unsigned char x,
+ void show_board_win(WINDOW *win, char board[BOARD_HEIGHT][BOARD_WIDTH], char cur_brick[4][4], const char brick_type, const unsigned char x, const unsigned char y)
+ {
+ 	unsigned char i, n;
+-	for(i = 0; i < BOARD_HEIGHT; i++)
++	for (i = 0; i < BOARD_HEIGHT; i++)
+ 	{
+-		for(n = 0; n < BOARD_WIDTH; n++)
++		for (n = 0; n < BOARD_WIDTH; n++)
+ 		{
+ 			show_brick_pice(win, board[i][n], n, i);
+ 		}
+ 	}
+ 	show_brick(win, cur_brick, brick_type, x, y);
+-    box(win, 0, 0);
++	box(win, 0, 0);
+ 	refresh_win(win);
+ }
+ 
+@@ -177,11 +178,11 @@ void show_brick(WINDOW *win, char cur_brick[4][4], const char brick_type, const
+ {
+ 	unsigned char i, n, a, b;
+ 	find_index(cur_brick, &a, &b);
+-	for(i = 0; i < 4; i++)
++	for (i = 0; i < 4; i++)
+ 	{
+-		for(n = 0; n < 4; n++)
++		for (n = 0; n < 4; n++)
+ 		{
+-			if(cur_brick[i][n] != 0 && x - a + n >= 0 && y - b + i >= 0)
++			if (cur_brick[i][n] != 0 && x - a + n >= 0 && y - b + i >= 0)
+ 			{
+ 				show_brick_pice(win, brick_type, x - a + n, y - b + i);
+ 			}
+@@ -193,25 +194,34 @@ void show_brick(WINDOW *win, char cur_brick[4][4], const char brick_type, const
+ void show_brick_preview(WINDOW *win, const char brick_type)
+ {
+ 	unsigned char x, y;
+-	for(y = 0; y < 4; y++)
++	for (y = 0; y < 4; y++)
+ 	{
+-		for(x = 1; x < 5; x++)
++		for (x = 1; x < 5; x++)
+ 		{
+ 			show_brick_pice(win, 0, x, y);
+ 		}
+ 	}
+ 	show_brick(win, brick_digit[brick_type - 1], brick_type, 2, 1);
+-    box(win, 0, 0);
++	box(win, 0, 0);
+ }
+ 
+ int get_key(WINDOW *win)
+ {
+-    if (emulated_key != 0) {
+-        int val = emulated_key;
+-        emulated_key = 0;
+-        return val;
+-    }
+-    
++	int joystick = get_joystick();
++
++	if (joystick != 0)
++	{
++		int val = joystick;
++		emulated_key = 0;
++		return val;
++	}
++	if (emulated_key != 0)
++	{
++		int val = emulated_key;
++		emulated_key = 0;
++		return val;
++	}
++
+ 	return wgetch(win);
+ }
+ 
+@@ -234,16 +244,16 @@ void show_game_over(WINDOW *win)
+ 	wattron(win, A_BOLD);
+ 	mvwprintw(win, (BOARD_HEIGHT / 2) - 1, BOARD_WIDTH - 8, "G A M E   O V E R");
+ 	wattroff(win, A_BOLD);
+-	mvwprintw(win, (BOARD_HEIGHT / 2) + 1, BOARD_WIDTH - 11 , "Press SPACE key to continue!");
++	mvwprintw(win, (BOARD_HEIGHT / 2) + 1, BOARD_WIDTH - 11, "Press SPACE key to continue!");
+ 	refresh_win(win);
+ }
+ 
+ void show_score(WINDOW *win, const unsigned int score, const char level, const unsigned long time)
+ {
+-        unsigned int hour = (time / 1000000) / 3600;
+-        unsigned int min = (time / 1000000) / 60 - hour * 60;
+-        unsigned int sec = (time / 1000000) % 60;
+-//        unsigned int millis = (time / 1000) % 1000;
++	unsigned int hour = (time / 1000000) / 3600;
++	unsigned int min = (time / 1000000) / 60 - hour * 60;
++	unsigned int sec = (time / 1000000) % 60;
++	//        unsigned int millis = (time / 1000) % 1000;
+ 	const int highlight_color = COLOR_RED_FG;
+ 	mvwprintw(win, 2, 2, "Score:");
+ 	mvwprintw(win, 6, 2, "Level:");
+@@ -251,16 +261,16 @@ void show_score(WINDOW *win, const unsigned int score, const char level, const u
+ 	wattron(win, COLOR_PAIR(highlight_color));
+ 	mvwprintw(win, 4, 2, "%u", score);
+ 	mvwprintw(win, 8, 2, "%u", (unsigned int)level);
+-//	mvwprintw(win, 12, 2, "%u:%u:%u.%u", hour, min, sec, millis);
++	//	mvwprintw(win, 12, 2, "%u:%u:%u.%u", hour, min, sec, millis);
+ 	mvwprintw(win, 12, 2, "%02u:%02u:%02u", hour, min, sec);
+ 	wattroff(win, COLOR_PAIR(highlight_color));
+-        box(win, 0, 0);
++	box(win, 0, 0);
+ 	refresh_win(win);
+ }
+ 
+ void wait_for_start(WINDOW *win)
+ {
+-	mvwprintw(win, (BOARD_HEIGHT / 2), BOARD_WIDTH - 10 , "Press a key to start!");
++	mvwprintw(win, (BOARD_HEIGHT / 2), BOARD_WIDTH - 10, "Press a key to start!");
+ 	refresh_win(win);
+ 	old_get_key(win);
+ }
+@@ -274,33 +284,34 @@ void show_highscore(const char *name)
+ 	const int highlight_color = COLOR_RED_FG;
+ 	read_highscore(&highscore);
+ 	clear();
+-	win = create_win(16, 43+14, (HEIGHT / 2) - 8, (WIDTH / 2) - 21 - 14);
++	win = create_win(16, 43 + 14, (HEIGHT / 2) - 8, (WIDTH / 2) - 21 - 14);
+ 	keypad(win, TRUE);
+ 	mvwprintw(win, 2, 5, "Highscore:");
+-	for(i = 0; i < 10; i++)
++	for (i = 0; i < 10; i++)
+ 	{
+-		if(strncmp(name, highscore.entry[i].name, 40) == 0)
++		if (strncmp(name, highscore.entry[i].name, 40) == 0)
+ 		{
+ 			wattron(win, COLOR_PAIR(highlight_color));
+ 			colorized_row = 1;
+ 		}
+ 		highscore.entry[i].name[20] = '\0';
+-		for(n = 0; n < 20; n++)
++		for (n = 0; n < 20; n++)
+ 		{
+ 			mvwprintw(win, (int)4 + i, (int)9 + n, ".");
+ 		}
+-        char *time = ctime(&highscore.entry[i].time);
+-        if (time != NULL) {
+-            time[strlen(time) - 1] = '\0';
+-        }
++		char *time = ctime(&highscore.entry[i].time);
++		if (time != NULL)
++		{
++			time[strlen(time) - 1] = '\0';
++		}
+ 		mvwprintw(win, (int)4 + i, 5, "%2u. %s [%s] ", (unsigned int)i + 1, highscore.entry[i].name, time);
+-		mvwprintw(win, (int)4 + i, 28+14, "%9u", highscore.entry[i].score);
++		mvwprintw(win, (int)4 + i, 28 + 14, "%9u", highscore.entry[i].score);
+ 		snprintf(tmp_string, 9, "%u", highscore.entry[i].score);
+-		for(n = 0; n < 9 - strlen(tmp_string); n++)
++		for (n = 0; n < 9 - strlen(tmp_string); n++)
+ 		{
+ 			mvwprintw(win, (int)4 + i, (int)28 + 14 + n, ".");
+ 		}
+-		if(colorized_row != 0)
++		if (colorized_row != 0)
+ 		{
+ 			wattroff(win, COLOR_PAIR(highlight_color));
+ 			colorized_row = 0;
+@@ -320,16 +331,17 @@ void read_string(const char *headline, const char *default_string, char *string,
+ 	curs_set(1);
+ 	mvwprintw(win, 2, 5, "%s (default: %s)", headline, default_name);
+ 	refresh_win(win);
+-	if(default_name[0] != '\0')
++	if (default_name[0] != '\0')
+ 	{
+-		if(mvwscanw(win, 4, 5, "%s", string) != 1)
++		if (mvwscanw(win, 4, 5, "%s", string) != 1)
+ 		{
+ 			strncpy(string, default_string, size);
+ 		}
+ 	}
+ 	else
+ 	{
+-		while(mvwscanw(win, 4, 5, "%s", string) == ERR);
++		while (mvwscanw(win, 4, 5, "%s", string) == ERR)
++			;
+ 	}
+ 	noecho();
+ 	curs_set(0);
+@@ -346,7 +358,7 @@ void add_user_to_highscore(char *name, const unsigned int score)
+ void show_pause(WINDOW *win)
+ {
+ 	wattron(win, A_BOLD);
+-	mvwprintw(win, (BOARD_HEIGHT / 2) - 1, BOARD_WIDTH - 4 , "P A U S E");
++	mvwprintw(win, (BOARD_HEIGHT / 2) - 1, BOARD_WIDTH - 4, "P A U S E");
+ 	wattroff(win, A_BOLD);
+ 	mvwprintw(win, (BOARD_HEIGHT / 2) + 1, BOARD_WIDTH - 10, "Press 'p' to continue!");
+ 	refresh_win(win);
+@@ -362,14 +374,14 @@ void show_colorized_char(const unsigned char x, const unsigned char y, const cha
+ void show_headline()
+ {
+ 	clear();
+-	
+-	//show_colorized_char((((BOARD_WIDTH * 2) + 10) / 2) - 5, 1, COLOR_RED_FG, 'C');
++
++	// show_colorized_char((((BOARD_WIDTH * 2) + 10) / 2) - 5, 1, COLOR_RED_FG, 'C');
+ 	show_colorized_char((((BOARD_WIDTH * 2) + 10) / 2) - 5, 1, COLOR_RED_FG, 'C');
+ 	show_colorized_char((((BOARD_WIDTH * 2) + 10) / 2) - 5 + 2, 1, COLOR_MAGENTA_FG, 'T');
+ 	show_colorized_char((((BOARD_WIDTH * 2) + 10) / 2) - 5 + 4, 1, COLOR_YELLOW_FG, 'R');
+ 	show_colorized_char((((BOARD_WIDTH * 2) + 10) / 2) - 5 + 6, 1, COLOR_WHITE_FG, 'I');
+ 	show_colorized_char((((BOARD_WIDTH * 2) + 10) / 2) - 5 + 8, 1, COLOR_GREEN_FG, 'S');
+-	
++
+ 	mvprintw(HEIGHT - 1, (BOARD_WIDTH * 2) + 9, VERSION);
+ 
+ 	refresh();
+@@ -379,7 +391,7 @@ void show_remove_row(WINDOW *win, char board[BOARD_HEIGHT][BOARD_WIDTH], const u
+ {
+ 	unsigned char i;
+ 	wattron(win, A_REVERSE);
+-	for(i = 0; i < BOARD_WIDTH; i++)
++	for (i = 0; i < BOARD_WIDTH; i++)
+ 	{
+ 		show_brick_pice(win, board[y][i], i, y);
+ 	}
+@@ -395,26 +407,26 @@ void refresh_win(WINDOW *win)
+ void show_yes_no(WINDOW *win, const char *question, const char cur_marked)
+ {
+ 	const int highlight_color = COLOR_GREEN_BG;
+-    mvwprintw(win, 2, 20 - (strlen(question) / 2), question);
+-	if(cur_marked == YES)
++	mvwprintw(win, 2, 20 - (strlen(question) / 2), question);
++	if (cur_marked == YES)
+ 	{
+ 		wattron(win, COLOR_PAIR(highlight_color));
+ 	}
+ 	mvwprintw(win, 4, 10, "[ YES ]");
+-	if(cur_marked == YES)
++	if (cur_marked == YES)
+ 	{
+ 		wattroff(win, COLOR_PAIR(highlight_color));
+ 	}
+-	else if(cur_marked == NO)
++	else if (cur_marked == NO)
+ 	{
+ 		wattron(win, COLOR_PAIR(highlight_color));
+ 	}
+ 	mvwprintw(win, 4, 24, "[ NO ]");
+-	if(cur_marked == NO)
++	if (cur_marked == NO)
+ 	{
+ 		wattroff(win, COLOR_PAIR(highlight_color));
+ 	}
+-    box(win, 0, 0);	
++	box(win, 0, 0);
+ 	refresh_win(win);
+ }
+ 
+@@ -427,39 +439,39 @@ char yes_no_question(const char *question)
+ 	keypad(win, TRUE);
+ 	wtimeout(win, 0);
+ 	show_yes_no(win, question, cur_marked);
+-	while(run == 0)
++	while (run == 0)
+ 	{
+-		switch(get_key(win))
++		switch (get_key(win))
+ 		{
+-			case 'y':
+-				cur_marked = YES;
+-				run = 1;
+-				break;
+-			case 'q':
+-			case 'n':
++		case 'y':
++			cur_marked = YES;
++			run = 1;
++			break;
++		case 'q':
++		case 'n':
++			cur_marked = NO;
++			run = 1;
++			break;
++		case KEY_LEFT:
++			cur_marked = YES;
++			break;
++		case KEY_RIGHT:
++			cur_marked = NO;
++			break;
++		case 9:
++			if (cur_marked == YES)
++			{
+ 				cur_marked = NO;
+-				run = 1;
+-				break;
+-			case KEY_LEFT:
++			}
++			else
++			{
+ 				cur_marked = YES;
+-				break;
+-			case KEY_RIGHT:
+-				cur_marked = NO;
+-				break;
+-			case 9:
+-				if(cur_marked == YES)
+-				{
+-					cur_marked = NO;
+-				}
+-				else
+-				{
+-					cur_marked = YES;
+-				}
+-				break;
+-			case ' ':
+-			case 10:
+-				run = 1;
+-				break;
++			}
++			break;
++		case ' ':
++		case 10:
++			run = 1;
++			break;
+ 		}
+ 		show_yes_no(win, question, cur_marked);
+ 	}
+@@ -469,10 +481,9 @@ char yes_no_question(const char *question)
+ 
+ char play_again()
+ {
+-	if(yes_no_question("Do you want to play again?") == YES)
++	if (yes_no_question("Do you want to play again?") == YES)
+ 	{
+ 		return 0;
+ 	}
+ 	return 1;
+ }
+-
